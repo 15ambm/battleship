@@ -1,4 +1,4 @@
-package org.example;
+package org.game;
 
 import java.util.Scanner;
 
@@ -32,62 +32,48 @@ class Board {
         // validate coordinates are in-line
         if ((point1[0] != point2[0]) && (point1[1] != point2[1])) throw new IllegalArgumentException("Coordinates are not in-line");
 
-        int orientation;
-        if (point1[0] == point2[0]) orientation = 0; // ship oriented horizontally
-        else orientation = 1; // ship oriented vertically
+        // if points have equal rows the ship is horizontal, otherwise vertical
+        int orientation = point1[0] == point2[0] ? 0 : 1;
 
         int length = (orientation == 0 ? Math.abs(point1[1] - point2[1]) : Math.abs(point1[0] - point2[0])) + 1;
         if (length != ship.length) throw new RuntimeException("Coordinates are not correct ship length (%d)".formatted(ship.length));
 
-        // print length and location
-        //System.out.printf("Length: %d", length);
-
-        int[] startPoint;
-        // iterate horizontally
-        if (orientation == 0) {
-            // start at point with smaller column value
-            startPoint = point1[1] < point2[1] ? point1 : point2;
-            for (int i = startPoint[1]; i < startPoint[1] + length; i++) {
-                // row value is fixed, increment column
-                if (board[startPoint[0]][i] == SHIP_BLOCK) throw new RuntimeException("A boat is already located here");
-                if (i > 0 && board[startPoint[0]][i-1] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
-                if (i < 9 && board[startPoint[0]][i+1] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
-                if (startPoint[0] > 0 && board[startPoint[0] - 1][i] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
-                if (startPoint[0] < 9 && board[startPoint[0] + 1][i] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
-            }
-            for (int i = startPoint[1]; i < startPoint[1] + length; i++) {
-                // row value is fixed, increment column
-                board[startPoint[0]][i] = SHIP_BLOCK;
-            }
-        } else { // iterate vertically
-            // start at point with smaller row value
-            startPoint = point1[0] < point2[0] ? point1 : point2;
-            for (int i = startPoint[0]; i < startPoint[0] + length; i++) {
-                // column value is fixed, increment row value
-                if (board[i][startPoint[1]] == SHIP_BLOCK) throw new RuntimeException("A boat is already located here");
-                if (i > 0 && board[i-1][startPoint[1]] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
-                if (i < 9 && board[i+1][startPoint[1]] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
-                if (startPoint[1] > 0 && board[i][startPoint[1] - 1] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
-                if (startPoint[1] < 9 && board[i][startPoint[1] + 1] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
-            }
-
-            for (int i = startPoint[0]; i < startPoint[0] + length; i++) {
-                // column value is fixed, increment row value
-                board[i][startPoint[1]] = SHIP_BLOCK;
-            }
-        }
+        checkAndInsertShip(orientation, point1, point2, length);
         System.out.println();
+    }
+
+    private void checkAndInsertShip(int orientation, int[] point1, int[] point2, int length) {
+        int[] startPoint;
+        if (orientation == 0) startPoint = point1[1] < point2[1] ? point1 : point2;
+        else startPoint = point1[0] < point2[0] ? point1 : point2;
+
+        int row = startPoint[0]; int col = startPoint[1];
+        for (int i = 0; i < length; i++) {
+            if (board[row][col] == SHIP_BLOCK)
+                throw new RuntimeException("A boat is already located here");
+            if ((col > 0 && board[row][col-1] == SHIP_BLOCK) ||
+                (col < 9 && board[row][col+1] == SHIP_BLOCK) ||
+                (row > 0 && board[row-1][col] == SHIP_BLOCK) ||
+                (row < 9 && board[row+1][col] == SHIP_BLOCK) )
+                throw new RuntimeException("Invalid boat placement");
+            if (orientation == 0) col ++; // move right across columns horizontally
+            else row++;                   // move down across rows vertically
+        }
+        row = startPoint[0]; col = startPoint[1];
+        for (int i = 0; i < length; i++) {
+            board[row][col] = SHIP_BLOCK;
+            if (orientation == 0) col ++;
+            else row++;
+        }
     }
 
     private static int[] getCoordinatesFromInput(String input) {
         input = input.trim();
         if (input.length() > 3) throw new IllegalArgumentException("Invalid coordinate");
-        char rawRow = input.charAt(0);
-        String rawCol = input.substring(1);
         try {
-            int row = rawRow - 'A';
-            int col = Integer.parseInt(rawCol) - 1;
-            if (row < 0 || col < 0 || row >= 10 || col >= 10) throw new IllegalArgumentException("Coordinate is out of board boundaries");
+            int row = input.charAt(0) - 'A';
+            int col = Integer.parseInt(input.substring(1)) - 1;
+            if (row < 0 || col < 0 || row >= 10 || col >= 10) throw new IllegalArgumentException("Invalid coordinate");
             return new int[] {row, col};
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid coordinate");
@@ -133,7 +119,7 @@ enum ShipType {
 
 class GameRunner {
     private static final Scanner scanner = new Scanner(System.in);
-    private Board board;
+    private final Board board;
     public GameRunner() {
         this.board = new Board();
     }
@@ -149,7 +135,7 @@ class GameRunner {
         do {
             System.out.printf("Enter the coordinates of the %s (%d cells):\n", ships[shipIndex].name, ships[shipIndex].length);
             input = scanner.nextLine();
-            String[] coordinates = input.split(" ");
+            String[] coordinates = input.toUpperCase().trim().split("\\s+");
             try {
                 board.placeShip(coordinates, ships[shipIndex]);
                 System.out.println(board);
