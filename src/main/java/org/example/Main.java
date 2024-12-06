@@ -4,7 +4,7 @@ import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
-        Runner runner = new Runner();
+        GameRunner runner = new GameRunner();
         runner.run();
     }
 }
@@ -13,8 +13,7 @@ class Board {
 
     char[][] board;
     private static final char FOG_OF_WAR = '~';
-    private static final char PLAYER_1 = '1';
-    private static final char PLAYER_2 = '2';
+    private static final char SHIP_BLOCK = 'O';
 
     public Board() {
         this.board = new char[10][10];
@@ -23,7 +22,7 @@ class Board {
         }
     }
 
-    public boolean placeShip(String[] coordinates) {
+    public void placeShip(String[] coordinates, ShipType ship) {
         if (coordinates.length != 2) throw new IllegalArgumentException("Expecting 2 distinct coordinates");
 
         // get coordinates and validate input/boundaries
@@ -38,36 +37,49 @@ class Board {
         else orientation = 1; // ship oriented vertically
 
         int length = (orientation == 0 ? Math.abs(point1[1] - point2[1]) : Math.abs(point1[0] - point2[0])) + 1;
+        if (length != ship.length) throw new RuntimeException("Coordinates are not correct ship length (%d)".formatted(ship.length));
 
         // print length and location
-        System.out.printf("Length: %d", length);
+        //System.out.printf("Length: %d", length);
 
         int[] startPoint;
-        System.out.print("\nParts: ");
-        // print horizontally
+        // iterate horizontally
         if (orientation == 0) {
             // start at point with smaller column value
             startPoint = point1[1] < point2[1] ? point1 : point2;
             for (int i = startPoint[1]; i < startPoint[1] + length; i++) {
                 // row value is fixed, increment column
-                System.out.printf("%s ",Board.getCoordinateString(startPoint[0], i));
-                board[startPoint[0]][i] = PLAYER_1;
-
+                if (board[startPoint[0]][i] == SHIP_BLOCK) throw new RuntimeException("A boat is already located here");
+                if (i > 0 && board[startPoint[0]][i-1] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
+                if (i < 9 && board[startPoint[0]][i+1] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
+                if (startPoint[0] > 0 && board[startPoint[0] - 1][i] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
+                if (startPoint[0] < 9 && board[startPoint[0] + 1][i] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
             }
-        } else { // print vertically
+            for (int i = startPoint[1]; i < startPoint[1] + length; i++) {
+                // row value is fixed, increment column
+                board[startPoint[0]][i] = SHIP_BLOCK;
+            }
+        } else { // iterate vertically
             // start at point with smaller row value
             startPoint = point1[0] < point2[0] ? point1 : point2;
             for (int i = startPoint[0]; i < startPoint[0] + length; i++) {
                 // column value is fixed, increment row value
-                System.out.printf("%s ",Board.getCoordinateString(i, startPoint[1]));
-                board[i][startPoint[1]] = PLAYER_1;
+                if (board[i][startPoint[1]] == SHIP_BLOCK) throw new RuntimeException("A boat is already located here");
+                if (i > 0 && board[i-1][startPoint[1]] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
+                if (i < 9 && board[i+1][startPoint[1]] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
+                if (startPoint[1] > 0 && board[i][startPoint[1] - 1] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
+                if (startPoint[1] < 9 && board[i][startPoint[1] + 1] == SHIP_BLOCK) throw new RuntimeException("Boat placement out of bounds");
+            }
+
+            for (int i = startPoint[0]; i < startPoint[0] + length; i++) {
+                // column value is fixed, increment row value
+                board[i][startPoint[1]] = SHIP_BLOCK;
             }
         }
         System.out.println();
-        return true;
     }
 
-    private int[] getCoordinatesFromInput(String input) {
+    private static int[] getCoordinatesFromInput(String input) {
         input = input.trim();
         if (input.length() > 3) throw new IllegalArgumentException("Invalid coordinate");
         char rawRow = input.charAt(0);
@@ -82,11 +94,8 @@ class Board {
         }
     }
 
-    public static String getCoordinateString(int row, int col) {
-        StringBuilder builder = new StringBuilder();
-        builder.append((char) (row + 65));
-        builder.append(col + 1);
-        return builder.toString().trim();
+    private static String getCoordinateString(int row, int col) {
+        return String.format("%c%d", (row + 'A'), (col + 1));
     }
 
     public String toString() {
@@ -95,7 +104,7 @@ class Board {
         for (int i = 1; i <= 10; i++) builder.append(" %d".formatted(i));
         builder.append("\n");
         for (int i = 0; i < 10; i++) {
-            builder.append(Character.toString(i + 'A'));
+            builder.append((char)(i + 'A'));
             for (int j = 0; j < 10; j++) {
                 builder.append(" ").append(this.board[i][j]);
             }
@@ -105,21 +114,52 @@ class Board {
     }
 }
 
-class Runner {
-    private static final Scanner scanner = new Scanner(System.in);
-    public Runner() {}
-    public void run() {
-        Board board = new Board();
-        System.out.println(board);
+enum ShipType {
 
-        System.out.println("Enter the coordinates of the ship:");
-        String input = scanner.nextLine();
-        String[] coordinates = input.split(" ");
-        try {
-            board.placeShip(coordinates);
-        } catch (IllegalArgumentException e) {
-            System.out.println("Error!");
-        }
-        //System.out.println(board);
+    AIRCRAFT_CARRIER("Aircraft Carrier", 5),
+    BATTLESHIP("Battleship", 4),
+    SUBMARINE("Submarine", 3),
+    CRUISER("Cruiser", 3),
+    DESTROYER("Destroyer", 2);
+
+    final int length;
+    final String name;
+
+    ShipType(String name, int length) {
+        this.length = length;
+        this.name = name;
     }
+}
+
+class GameRunner {
+    private static final Scanner scanner = new Scanner(System.in);
+    private Board board;
+    public GameRunner() {
+        this.board = new Board();
+    }
+    public void run() {
+        placeShips();
+        System.out.println(board);
+    }
+    private void placeShips(){
+        String input;
+        ShipType[] ships = ShipType.values();
+        int shipIndex = 0;
+        System.out.println(board);
+        do {
+            System.out.printf("Enter the coordinates of the %s (%d cells):\n", ships[shipIndex].name, ships[shipIndex].length);
+            input = scanner.nextLine();
+            String[] coordinates = input.split(" ");
+            try {
+                board.placeShip(coordinates, ships[shipIndex]);
+                System.out.println(board);
+                shipIndex++;
+            } catch (IllegalArgumentException e) {
+                System.out.println("Error : " + e.getMessage());
+            } catch (RuntimeException e) {
+                System.out.println("Error runtime: " + e.getMessage());
+            }
+        } while (!input.equals("exit") && shipIndex < ships.length);
+    }
+
 }
