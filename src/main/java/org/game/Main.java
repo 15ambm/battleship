@@ -1,6 +1,10 @@
 package org.game;
 
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Scanner;
+import java.util.stream.Collectors;
 
 public class Main {
     public static void main(String[] args) {
@@ -10,16 +14,21 @@ public class Main {
 }
 
 class Board {
-
-    private final char[][] board;
-
     private static final char FOG_OF_WAR = '~';
     private static final char SHIP_BLOCK = 'O';
     private static final char HIT_BLOCK = 'X';
     private static final char MISS_BLOCK = 'M';
 
+    private final char[][] board;
+    private final HashMap<Point, Ship> shipLocationMap;
+    private final List<Ship> ships;
+    private int totalHealth;
+
     public Board() {
         this.board = new char[10][10];
+        this.ships = Arrays.stream(ShipType.values()).map(Ship::new).collect(Collectors.toList());
+        this.totalHealth = Arrays.stream(ShipType.values()).mapToInt(ship -> ship.length).sum();
+        this.shipLocationMap = new HashMap<>();
         for (int i = 0; i < 10; i++) {
             for (int j = 0; j < 10; j++) {
                 this.board[i][j] = FOG_OF_WAR;
@@ -29,50 +38,54 @@ class Board {
 
     public String shootAtShip(String coordinate) {
         if (coordinate.length() == 0 || coordinate.length() >3) throw new IllegalArgumentException("Expecting two characters [A-J][1-10]");
-        int[] point = getCoordinatesFromInput(coordinate);
-        char boardValue = board[point[0]][point[1]];
+        Point point = getCoordinatesFromInput(coordinate);
+        char boardValue = board[point.row()][point.col()];
         switch (boardValue) {
             case SHIP_BLOCK -> {
-                board[point[0]][point[1]] = HIT_BLOCK;
+                board[point.row()][point.col()] = HIT_BLOCK;
+                this.totalHealth--;
+                if (this.totalHealth == 0) return "win";
+                shipLocationMap.get(point).decrementHealth();
+                if (shipLocationMap.get(point).getHealth() == 0) return "\nYou sank a ship!";
                 return "\nYou hit a ship!";
             }
             case FOG_OF_WAR -> {
-                board[point[0]][point[1]] = MISS_BLOCK;
+                board[point.row()][point.col()] = MISS_BLOCK;
                 return "\nYou missed!";
             }
-            case (MISS_BLOCK | HIT_BLOCK) -> {
+            case MISS_BLOCK, HIT_BLOCK -> {
                 return "\nAlready hit!";
             }
         }
         return "";
     }
 
-    public void placeShip(String[] coordinates, ShipType ship) {
+    public void placeShip(String[] coordinates, Ship ship) {
         if (coordinates.length != 2) throw new IllegalArgumentException("Expecting 2 distinct coordinates");
 
         // get coordinates and validate input/boundaries
-       int[] point1 = getCoordinatesFromInput(coordinates[0]);
-       int[] point2 = getCoordinatesFromInput(coordinates[1]);
+       Point point1 = getCoordinatesFromInput(coordinates[0]);
+       Point point2 = getCoordinatesFromInput(coordinates[1]);
 
         // validate coordinates are in-line
-        if ((point1[0] != point2[0]) && (point1[1] != point2[1])) throw new IllegalArgumentException("Coordinates are not in-line");
+        if ((point1.row() != point2.row()) && (point1.col() != point2.col())) throw new IllegalArgumentException("Coordinates are not in-line");
 
         // if points in the same row the ship is horizontal, otherwise vertical
-        int orientation = point1[0] == point2[0] ? 0 : 1;
+        int orientation = point1.row() == point2.row() ? 0 : 1;
 
-        int length = (orientation == 0 ? Math.abs(point1[1] - point2[1]) : Math.abs(point1[0] - point2[0])) + 1;
-        if (length != ship.length) throw new RuntimeException("Coordinates are not correct ship length (%d)".formatted(ship.length));
+        int length = (orientation == 0 ? Math.abs(point1.col() - point2.col()) : Math.abs(point1.row() - point2.row())) + 1;
+        if (length != ship.getLength()) throw new RuntimeException("Coordinates are not correct ship length (%d)".formatted(ship.getLength()));
 
-        checkAndInsertShip(orientation, point1, point2, ship.length);
+        checkAndInsertShip(orientation, point1, point2, ship);
     }
 
-    private void checkAndInsertShip(int orientation, int[] point1, int[] point2, int length) {
-        int[] startPoint;
-        if (orientation == 0) startPoint = point1[1] < point2[1] ? point1 : point2;
-        else startPoint = point1[0] < point2[0] ? point1 : point2;
+    private void checkAndInsertShip(int orientation, Point point1, Point point2, Ship ship) {
+        Point startPoint;
+        if (orientation == 0) startPoint = point1.col() < point2.col() ? point1 : point2;
+        else startPoint = point1.row() < point2.row() ? point1 : point2;
 
-        int row = startPoint[0]; int col = startPoint[1];
-        for (int i = 0; i < length; i++) {
+        int row = startPoint.row(); int col = startPoint.col();
+        for (int i = 0; i < ship.getLength(); i++) {
             if (board[row][col] == SHIP_BLOCK)
                 throw new RuntimeException("A boat is already located here");
             if ((col > 0 && board[row][col-1] == SHIP_BLOCK) ||
@@ -83,27 +96,31 @@ class Board {
             if (orientation == 0) col ++; // move right across columns horizontally
             else row++;                   // move down across rows vertically
         }
-        row = startPoint[0]; col = startPoint[1];
-        for (int i = 0; i < length; i++) {
+        row = startPoint.row(); col = startPoint.col();
+        for (int i = 0; i < ship.getLength(); i++) {
             board[row][col] = SHIP_BLOCK;
+            shipLocationMap.put(new Point(row, col), ship);
             if (orientation == 0) col ++;
             else row++;
         }
     }
 
-    private static int[] getCoordinatesFromInput(String input) {
+    private static Point getCoordinatesFromInput(String input) {
         if (input.length() > 3) throw new IllegalArgumentException("Invalid coordinate");
         try { //[A-J][1-10] B2
             if (input.charAt(0) < 'A' || input.charAt(0) > 'J') throw new IllegalArgumentException("Invalid Coordinate");
             int row = input.charAt(0) - 'A';
             int col = Integer.parseInt(input.substring(1)) - 1;
             if (row < 0 || col < 0 || row >= 10 || col >= 10) throw new IllegalArgumentException("Invalid coordinate");
-            return new int[] {row, col};
+            return new Point(row, col);
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid coordinate");
         }
     }
 
+    public List<Ship> getShips() {
+        return this.ships;
+    }
     private static String getCoordinateString(int row, int col) {
         return String.format("%c%d", (row + 'A'), (col + 1));
     }
@@ -155,6 +172,28 @@ enum ShipType {
     }
 }
 
+class Ship {
+    private final ShipType type;
+    private int health;
+
+    public Ship(ShipType type) {
+        this.type = type;
+        this.health = type.length;
+    }
+    public String getName() {
+        return this.type.name;
+    }
+    public int getLength() {
+        return this.type.length;
+    }
+    public int getHealth() {
+        return this.health;
+    }
+    public void decrementHealth() {
+        this.health--;
+    }
+}
+
 class GameRunner {
     private static final Scanner scanner = new Scanner(System.in);
     private final Board board;
@@ -167,15 +206,15 @@ class GameRunner {
     }
     private void placeShips(){
         String input;
-        ShipType[] ships = ShipType.values();
+        List<Ship> ships = board.getShips();
         int shipIndex = 0;
         board.printFullBoard();
         do {
-            System.out.printf("\nEnter the coordinates of the %s (%d cells):\n> ", ships[shipIndex].name, ships[shipIndex].length);
+            System.out.printf("\nEnter the coordinates of the %s (%d cells):\n> ", ships.get(shipIndex).getName(), ships.get(shipIndex).getLength());
             input = scanner.nextLine();
             String[] coordinates = input.toUpperCase().trim().split("\\s+");
             try {
-                board.placeShip(coordinates, ships[shipIndex]);
+                board.placeShip(coordinates, ships.get(shipIndex));
                 board.printFullBoard();
                 shipIndex++;
             } catch (IllegalArgumentException e) {
@@ -183,7 +222,7 @@ class GameRunner {
             } catch (RuntimeException e) {
                 System.out.println("Error runtime: " + e.getMessage());
             }
-        } while (!input.equals("exit") && shipIndex < ships.length);
+        } while (!input.equals("exit") && shipIndex < ships.size());
     }
 
     private void beginGame() {
@@ -191,11 +230,16 @@ class GameRunner {
         System.out.println("\nThe game starts!");
         board.printBoardWithFog();
         do {
-            System.out.println("\nTake a shot!\n> ");
+            System.out.print("\nTake a shot!\n> ");
             input = scanner.nextLine();
             String coordinate = input.toUpperCase().trim();
             try {
                 String actionResult = board.shootAtShip(coordinate);
+                if (actionResult.equals("win")) {
+                    board.printFullBoard();
+                    System.out.println("\nYou sank the last ship. You won. Congratulations!");
+                    break;
+                }
                 board.printBoardWithFog();
                 System.out.println(actionResult);
                 board.printFullBoard();
@@ -208,3 +252,5 @@ class GameRunner {
     }
 
 }
+
+record Point(int row, int col) { }
