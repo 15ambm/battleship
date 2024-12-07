@@ -11,7 +11,8 @@ public class Main {
 
 class Board {
 
-    char[][] board;
+    private final char[][] board;
+
     private static final char FOG_OF_WAR = '~';
     private static final char SHIP_BLOCK = 'O';
     private static final char HIT_BLOCK = 'X';
@@ -20,31 +21,32 @@ class Board {
     public Board() {
         this.board = new char[10][10];
         for (int i = 0; i < 10; i++) {
-            for (int j = 0; j < 10; j++) this.board[i][j] = FOG_OF_WAR;
+            for (int j = 0; j < 10; j++) {
+                this.board[i][j] = FOG_OF_WAR;
+            }
         }
     }
 
     public String shootAtShip(String coordinate) {
         if (coordinate.length() == 0 || coordinate.length() >3) throw new IllegalArgumentException("Expecting two characters [A-J][1-10]");
         int[] point = getCoordinatesFromInput(coordinate);
-
-        char value = board[point[0]][point[1]];
-
-        switch (value) {
+        char boardValue = board[point[0]][point[1]];
+        switch (boardValue) {
             case SHIP_BLOCK -> {
                 board[point[0]][point[1]] = HIT_BLOCK;
-                return "You hit a ship!";
+                return "\nYou hit a ship!";
             }
             case FOG_OF_WAR -> {
                 board[point[0]][point[1]] = MISS_BLOCK;
-                return "You missed!";
+                return "\nYou missed!";
             }
             case (MISS_BLOCK | HIT_BLOCK) -> {
-                return "Already hit!";
+                return "\nAlready hit!";
             }
         }
         return "";
     }
+
     public void placeShip(String[] coordinates, ShipType ship) {
         if (coordinates.length != 2) throw new IllegalArgumentException("Expecting 2 distinct coordinates");
 
@@ -107,6 +109,18 @@ class Board {
     }
 
     public String toString() {
+        return getBoardString(false);
+    }
+
+    public void printBoardWithFog() {
+        System.out.println(getBoardString(true));
+    }
+
+    public void printFullBoard() {
+        System.out.println(getBoardString(false));
+    }
+
+    private String getBoardString(boolean withFog) {
         StringBuilder builder = new StringBuilder();
         builder.append("\n ");
         for (int i = 1; i <= 10; i++) builder.append(" %d".formatted(i));
@@ -114,7 +128,9 @@ class Board {
         for (int i = 0; i < 10; i++) {
             builder.append((char)(i + 'A'));
             for (int j = 0; j < 10; j++) {
-                builder.append(" ").append(this.board[i][j]);
+                builder.append(" ");
+                if (withFog && this.board[i][j] == SHIP_BLOCK) builder.append(FOG_OF_WAR);
+                else builder.append(this.board[i][j]);
             }
             if (i < 9) builder.append("\n");
         }
@@ -153,14 +169,14 @@ class GameRunner {
         String input;
         ShipType[] ships = ShipType.values();
         int shipIndex = 0;
-        System.out.println(board);
+        board.printFullBoard();
         do {
             System.out.printf("\nEnter the coordinates of the %s (%d cells):\n> ", ships[shipIndex].name, ships[shipIndex].length);
             input = scanner.nextLine();
             String[] coordinates = input.toUpperCase().trim().split("\\s+");
             try {
                 board.placeShip(coordinates, ships[shipIndex]);
-                System.out.println(board);
+                board.printFullBoard();
                 shipIndex++;
             } catch (IllegalArgumentException e) {
                 System.out.println("Error : " + e.getMessage());
@@ -172,21 +188,22 @@ class GameRunner {
 
     private void beginGame() {
         String input;
-        System.out.println("The game starts!");
+        System.out.println("\nThe game starts!");
+        board.printBoardWithFog();
         do {
             System.out.println("\nTake a shot!\n> ");
             input = scanner.nextLine();
             String coordinate = input.toUpperCase().trim();
-            String result = "";
             try {
-                result = board.shootAtShip(coordinate);
-                System.out.println(board);
+                String actionResult = board.shootAtShip(coordinate);
+                board.printBoardWithFog();
+                System.out.println(actionResult);
+                board.printFullBoard();
             } catch (IllegalArgumentException e) {
                 System.out.println("Error : " + e.getMessage());
             } catch (RuntimeException e) {
                 System.out.println("Error runtime: " + e.getMessage());
             }
-            System.out.println(result);
         } while (!input.equals("exit"));
     }
 
