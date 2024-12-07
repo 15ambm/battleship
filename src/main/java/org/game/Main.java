@@ -14,6 +14,8 @@ class Board {
     char[][] board;
     private static final char FOG_OF_WAR = '~';
     private static final char SHIP_BLOCK = 'O';
+    private static final char HIT_BLOCK = 'X';
+    private static final char MISS_BLOCK = 'M';
 
     public Board() {
         this.board = new char[10][10];
@@ -22,6 +24,27 @@ class Board {
         }
     }
 
+    public String shootAtShip(String coordinate) {
+        if (coordinate.length() == 0 || coordinate.length() >3) throw new IllegalArgumentException("Expecting two characters [A-J][1-10]");
+        int[] point = getCoordinatesFromInput(coordinate);
+
+        char value = board[point[0]][point[1]];
+
+        switch (value) {
+            case SHIP_BLOCK -> {
+                board[point[0]][point[1]] = HIT_BLOCK;
+                return "You hit a ship!";
+            }
+            case FOG_OF_WAR -> {
+                board[point[0]][point[1]] = MISS_BLOCK;
+                return "You missed!";
+            }
+            case (MISS_BLOCK | HIT_BLOCK) -> {
+                return "Already hit!";
+            }
+        }
+        return "";
+    }
     public void placeShip(String[] coordinates, ShipType ship) {
         if (coordinates.length != 2) throw new IllegalArgumentException("Expecting 2 distinct coordinates");
 
@@ -32,14 +55,13 @@ class Board {
         // validate coordinates are in-line
         if ((point1[0] != point2[0]) && (point1[1] != point2[1])) throw new IllegalArgumentException("Coordinates are not in-line");
 
-        // if points have equal rows the ship is horizontal, otherwise vertical
+        // if points in the same row the ship is horizontal, otherwise vertical
         int orientation = point1[0] == point2[0] ? 0 : 1;
 
         int length = (orientation == 0 ? Math.abs(point1[1] - point2[1]) : Math.abs(point1[0] - point2[0])) + 1;
         if (length != ship.length) throw new RuntimeException("Coordinates are not correct ship length (%d)".formatted(ship.length));
 
-        checkAndInsertShip(orientation, point1, point2, length);
-        System.out.println();
+        checkAndInsertShip(orientation, point1, point2, ship.length);
     }
 
     private void checkAndInsertShip(int orientation, int[] point1, int[] point2, int length) {
@@ -68,9 +90,9 @@ class Board {
     }
 
     private static int[] getCoordinatesFromInput(String input) {
-        input = input.trim();
         if (input.length() > 3) throw new IllegalArgumentException("Invalid coordinate");
-        try {
+        try { //[A-J][1-10] B2
+            if (input.charAt(0) < 'A' || input.charAt(0) > 'J') throw new IllegalArgumentException("Invalid Coordinate");
             int row = input.charAt(0) - 'A';
             int col = Integer.parseInt(input.substring(1)) - 1;
             if (row < 0 || col < 0 || row >= 10 || col >= 10) throw new IllegalArgumentException("Invalid coordinate");
@@ -86,7 +108,7 @@ class Board {
 
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        builder.append(" ");
+        builder.append("\n ");
         for (int i = 1; i <= 10; i++) builder.append(" %d".formatted(i));
         builder.append("\n");
         for (int i = 0; i < 10; i++) {
@@ -94,7 +116,7 @@ class Board {
             for (int j = 0; j < 10; j++) {
                 builder.append(" ").append(this.board[i][j]);
             }
-            builder.append("\n");
+            if (i < 9) builder.append("\n");
         }
         return builder.toString();
     }
@@ -125,7 +147,7 @@ class GameRunner {
     }
     public void run() {
         placeShips();
-        System.out.println(board);
+        beginGame();
     }
     private void placeShips(){
         String input;
@@ -133,7 +155,7 @@ class GameRunner {
         int shipIndex = 0;
         System.out.println(board);
         do {
-            System.out.printf("Enter the coordinates of the %s (%d cells):\n", ships[shipIndex].name, ships[shipIndex].length);
+            System.out.printf("\nEnter the coordinates of the %s (%d cells):\n> ", ships[shipIndex].name, ships[shipIndex].length);
             input = scanner.nextLine();
             String[] coordinates = input.toUpperCase().trim().split("\\s+");
             try {
@@ -146,6 +168,26 @@ class GameRunner {
                 System.out.println("Error runtime: " + e.getMessage());
             }
         } while (!input.equals("exit") && shipIndex < ships.length);
+    }
+
+    private void beginGame() {
+        String input;
+        System.out.println("The game starts!");
+        do {
+            System.out.println("\nTake a shot!\n> ");
+            input = scanner.nextLine();
+            String coordinate = input.toUpperCase().trim();
+            String result = "";
+            try {
+                result = board.shootAtShip(coordinate);
+                System.out.println(board);
+            } catch (IllegalArgumentException e) {
+                System.out.println("Error : " + e.getMessage());
+            } catch (RuntimeException e) {
+                System.out.println("Error runtime: " + e.getMessage());
+            }
+            System.out.println(result);
+        } while (!input.equals("exit"));
     }
 
 }
