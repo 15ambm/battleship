@@ -38,7 +38,7 @@ class Board {
 
     public String shootAtShip(String coordinate) {
         if (coordinate.length() == 0 || coordinate.length() >3) throw new IllegalArgumentException("Expecting two characters [A-J][1-10]");
-        Point point = getCoordinatesFromInput(coordinate);
+        Point point = getPointFromInput(coordinate);
         char boardValue = board[point.row()][point.col()];
         switch (boardValue) {
             case SHIP_BLOCK -> {
@@ -64,8 +64,8 @@ class Board {
         if (coordinates.length != 2) throw new IllegalArgumentException("Expecting 2 distinct coordinates");
 
         // get coordinates and validate input/boundaries
-       Point point1 = getCoordinatesFromInput(coordinates[0]);
-       Point point2 = getCoordinatesFromInput(coordinates[1]);
+       Point point1 = getPointFromInput(coordinates[0]);
+       Point point2 = getPointFromInput(coordinates[1]);
 
         // validate coordinates are in-line
         if ((point1.row() != point2.row()) && (point1.col() != point2.col())) throw new IllegalArgumentException("Coordinates are not in-line");
@@ -105,7 +105,7 @@ class Board {
         }
     }
 
-    private static Point getCoordinatesFromInput(String input) {
+    private static Point getPointFromInput(String input) {
         if (input.length() > 3) throw new IllegalArgumentException("Invalid coordinate");
         try { //[A-J][1-10] B2
             if (input.charAt(0) < 'A' || input.charAt(0) > 'J') throw new IllegalArgumentException("Invalid Coordinate");
@@ -196,15 +196,20 @@ class Ship {
 
 class GameRunner {
     private static final Scanner scanner = new Scanner(System.in);
-    private final Board board;
+    private final Board playerOneBoard;
+    private final Board playerTwoBoard;
+    private boolean gameOver = false;
     public GameRunner() {
-        this.board = new Board();
+        this.playerOneBoard = new Board();
+        this.playerTwoBoard = new Board();
     }
     public void run() {
-        placeShips();
+        placeShips(playerOneBoard);
+        placeShips(playerTwoBoard);
+        waitForNextPlayer();
         beginGame();
     }
-    private void placeShips(){
+    private void placeShips(Board board){
         String input;
         List<Ship> ships = board.getShips();
         int shipIndex = 0;
@@ -226,29 +231,53 @@ class GameRunner {
     }
 
     private void beginGame() {
-        String input;
         System.out.println("\nThe game starts!");
-        board.printBoardWithFog();
-        do {
-            System.out.print("\nTake a shot!\n> ");
-            input = scanner.nextLine();
-            String coordinate = input.toUpperCase().trim();
-            try {
-                String actionResult = board.shootAtShip(coordinate);
-                if (actionResult.equals("win")) {
-                    board.printFullBoard();
-                    System.out.println("\nYou sank the last ship. You won. Congratulations!");
-                    break;
-                }
-                board.printBoardWithFog();
-                System.out.println(actionResult);
+        int currentPlayer = 1;
+
+        while (!gameOver) {
+            printBoards(currentPlayer);
+            System.out.printf("\nPlayer %d, it's your turn:", currentPlayer);
+            attack(currentPlayer);
+            waitForNextPlayer();
+            currentPlayer = currentPlayer == 1 ? 2 : 1;
+        }
+    }
+
+    private void attack(int currentPlayer) {
+        Board board = currentPlayer == 1 ? playerTwoBoard : playerOneBoard;
+        System.out.print("\n> ");
+        String input = scanner.nextLine();
+        String coordinate = input.toUpperCase().trim();
+        try {
+            String actionResult = board.shootAtShip(coordinate);
+            if (actionResult.equals("win")) {
                 board.printFullBoard();
-            } catch (IllegalArgumentException e) {
-                System.out.println("Error : " + e.getMessage());
-            } catch (RuntimeException e) {
-                System.out.println("Error runtime: " + e.getMessage());
+                System.out.println("\nYou sank the last ship. You won. Congratulations!");
+                this.gameOver = true;
+                return;
             }
-        } while (!input.equals("exit"));
+            System.out.println(actionResult);
+        } catch (RuntimeException e) {
+            System.out.println("Error: " + e.getMessage());
+            attack(currentPlayer);
+        }
+    }
+
+    private void waitForNextPlayer() {
+        System.out.println("Press Enter and pass the move to another player");
+        scanner.nextLine();
+    }
+
+    private void printBoards(int currentPlayer) {
+        if (currentPlayer == 1) {
+            playerTwoBoard.printBoardWithFog();
+            System.out.print("---------------------");
+            playerOneBoard.printFullBoard();
+        } else if (currentPlayer == 2) {
+            playerOneBoard.printBoardWithFog();
+            System.out.print("---------------------");
+            playerTwoBoard.printFullBoard();
+        }
     }
 
 }
